@@ -7,11 +7,12 @@ services:
     databaseUser: skilledger
     ipAllowList: []
 
-  - type: web
+  - - type: web
     name: skilledger-licenses-api
     runtime: python
     region: oregon
     plan: free
+    rootDir: backend
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
