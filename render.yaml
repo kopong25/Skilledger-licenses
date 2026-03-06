@@ -1,0 +1,45 @@
+services:
+  # PostgreSQL Database
+  - type: pgsql
+    name: skilledger-licenses-db
+    plan: starter
+    region: ohio
+    databaseName: skilledger_licenses
+    databaseUser: skilledger
+    ipAllowList: []
+
+  # FastAPI Web Service
+  - type: web
+    name: skilledger-licenses-api
+    runtime: docker
+    region: ohio
+    plan: starter
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: skilledger-licenses-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ENVIRONMENT
+        value: production
+      - key: DEBUG
+        value: false
+      - key: REDIS_URL
+        value: redis://localhost:6379/0
+      - key: PORT
+        value: 10000
+      - key: HOST
+        value: 0.0.0.0
+    healthCheckPath: /health
+    autoDeploy: true
+
+  # Redis (for caching)
+  - type: redis
+    name: skilledger-licenses-redis
+    plan: starter
+    region: ohio
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: []
