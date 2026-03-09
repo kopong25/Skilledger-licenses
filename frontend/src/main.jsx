@@ -189,7 +189,7 @@ function Dashboard({ showToast }) {
   const [stats, setStats] = useState({
     totalVerifications: 0,
     activeMonitors: 0,
-    expiringS oon: 0,
+    expiringSoon: 0,
     complianceRate: 100,
   });
 
