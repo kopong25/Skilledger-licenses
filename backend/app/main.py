@@ -13,8 +13,7 @@ from app.database import init_db, engine
 from app.models import Base
 
 # Import routers
-from app.api import verification, monitoring, bulk, audit
-app.include_router(auth.router, prefix="/api")
+from app.api import verification, monitoring, bulk, audit, auth
 
 # Configure logging
 logger.remove()
@@ -30,22 +29,22 @@ app = FastAPI(
     version=settings.APP_VERSION,
     description="""
     ## SkillLedger License Verification API
-    
+
     The programmable trust layer for professional credentials.
-    
+
     ### Features
-    
+
     * **Single License Verification** - Verify any professional license in 3 seconds
     * **Multi-State Search** - Search all 50 states in parallel
     * **Bulk Verification** - Upload CSV, get results for 100+ licenses
     * **Expiration Monitoring** - Automatic alerts before licenses expire
     * **Compliance Audit Trail** - Complete verification history for audits
     * **ATS Integration** - Works with Bullhorn, JobDiva, Greenhouse, and more
-    
+
     ### Authentication
-    
+
     All endpoints require an API key in the `X-API-Key` header.
-    
+
     Get your API key: https://skilledger.com/api-keys
     """,
     docs_url="/docs",
@@ -70,7 +69,7 @@ async def startup_event():
     """
     logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
     logger.info(f"Environment: {settings.ENVIRONMENT}")
-    
+
     # Create database tables
     logger.info("Initializing database...")
     try:
@@ -79,11 +78,7 @@ async def startup_event():
     except Exception as e:
         logger.error(f"✗ Database initialization failed: {str(e)}")
         raise
-    
-    # TODO: Start background workers for monitoring
-    # if settings.ENABLE_DAILY_CHECKS:
-    #     logger.info("Starting monitoring worker...")
-    
+
     logger.info(f"✓ {settings.APP_NAME} started successfully")
     logger.info(f"✓ Listening on {settings.HOST}:{settings.PORT}")
     logger.info(f"✓ Documentation: http://{settings.HOST}:{settings.PORT}/docs")
@@ -105,7 +100,7 @@ async def global_exception_handler(request: Request, exc: Exception):
     Global exception handler
     """
     logger.error(f"Unhandled exception: {str(exc)}")
-    
+
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={
@@ -153,6 +148,7 @@ app.include_router(verification.router, prefix="/api")
 app.include_router(monitoring.router, prefix="/api")
 app.include_router(bulk.router, prefix="/api")
 app.include_router(audit.router, prefix="/api")
+app.include_router(auth.router, prefix="/api")
 
 
 # Demo endpoint for testing
@@ -160,16 +156,16 @@ app.include_router(audit.router, prefix="/api")
 async def demo_verify_license(license_number: str, state: str):
     """
     Demo endpoint - No authentication required
-    
+
     Try it with:
     - license_number: 123456
     - state: AZ
     """
     from app.services.state_boards import MockStateBoardAdapter
-    
+
     adapter = MockStateBoardAdapter()
     result = await adapter.verify_license(license_number, state)
-    
+
     return {
         "demo": True,
         "message": "This is a demo using mock data. Sign up for real verification.",
@@ -180,7 +176,7 @@ async def demo_verify_license(license_number: str, state: str):
 
 if __name__ == "__main__":
     import uvicorn
-    
+
     uvicorn.run(
         "app.main:app",
         host=settings.HOST,
