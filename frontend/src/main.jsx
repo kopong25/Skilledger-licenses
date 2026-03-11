@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
   Search, Bell, Upload, FileText, AlertTriangle,
@@ -9,7 +9,7 @@ import './index.css';
 
 // API Configuration
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:10000';
-const API_KEY = import.meta.env.VITE_API_KEY || 'sk_test_demo_key_12345';
+const API_KEY = import.meta.env.VITE_API_KEY;
 
 // API Service
 const api = {
@@ -22,12 +22,12 @@ const api = {
         ...options.headers,
       },
     });
-    
+
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || 'API Error');
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || `Request failed (${response.status})`);
     }
-    
+
     return response.json();
   },
 
@@ -69,7 +69,7 @@ const api = {
   async uploadBulkCSV(file) {
     const formData = new FormData();
     formData.append('file', file);
-    
+
     const response = await fetch(`${API_URL}/api/bulk/upload`, {
       method: 'POST',
       headers: {
@@ -77,7 +77,7 @@ const api = {
       },
       body: formData,
     });
-    
+
     if (!response.ok) throw new Error('Upload failed');
     return response.json();
   },
@@ -90,8 +90,11 @@ function Toast({ message, type, onClose }) {
     return () => clearTimeout(timer);
   }, [onClose]);
 
-  const bgColor = type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : 'bg-blue-500';
-  
+  const bgColor =
+    type === 'success' ? 'bg-green-500' :
+    type === 'error'   ? 'bg-red-500'   :
+                         'bg-blue-500';
+
   return (
     <div className={`fixed top-4 right-4 ${bgColor} text-white px-6 py-3 rounded-lg shadow-lg z-50 animate-slide-in`}>
       {message}
@@ -104,25 +107,27 @@ function App() {
   const [currentView, setCurrentView] = useState('dashboard');
   const [toast, setToast] = useState(null);
 
-  const showToast = (message, type = 'info') => {
+  // FIX: useCallback gives showToast a stable reference so it never
+  // triggers useEffect re-runs in child components.
+  const showToast = useCallback((message, type = 'info') => {
     setToast({ message, type });
-  };
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-50">
       {toast && <Toast {...toast} onClose={() => setToast(null)} />}
-      
+
       <Sidebar currentView={currentView} setCurrentView={setCurrentView} />
-      
+
       <div className="ml-64 p-8">
         <Header />
-        
-        {currentView === 'dashboard' && <Dashboard showToast={showToast} />}
-        {currentView === 'verify' && <VerifyPage showToast={showToast} />}
-        {currentView === 'multistate' && <MultiStatePage showToast={showToast} />}
-        {currentView === 'monitoring' && <MonitoringPage showToast={showToast} />}
-        {currentView === 'bulk' && <BulkUploadPage showToast={showToast} />}
-        {currentView === 'compliance' && <CompliancePage showToast={showToast} />}
+
+        {currentView === 'dashboard'   && <Dashboard    showToast={showToast} />}
+        {currentView === 'verify'      && <VerifyPage   showToast={showToast} />}
+        {currentView === 'multistate'  && <MultiStatePage showToast={showToast} />}
+        {currentView === 'monitoring'  && <MonitoringPage showToast={showToast} />}
+        {currentView === 'bulk'        && <BulkUploadPage showToast={showToast} />}
+        {currentView === 'compliance'  && <CompliancePage showToast={showToast} />}
       </div>
     </div>
   );
@@ -131,12 +136,12 @@ function App() {
 // Sidebar Navigation
 function Sidebar({ currentView, setCurrentView }) {
   const navItems = [
-    { id: 'dashboard', icon: TrendingUp, label: 'Dashboard' },
-    { id: 'verify', icon: Search, label: 'Verify License' },
-    { id: 'multistate', icon: Shield, label: 'Multi-State Search' },
-    { id: 'monitoring', icon: Bell, label: 'Monitoring' },
-    { id: 'bulk', icon: Upload, label: 'Bulk Upload' },
-    { id: 'compliance', icon: FileText, label: 'Compliance' },
+    { id: 'dashboard',  icon: TrendingUp, label: 'Dashboard' },
+    { id: 'verify',     icon: Search,     label: 'Verify License' },
+    { id: 'multistate', icon: Shield,     label: 'Multi-State Search' },
+    { id: 'monitoring', icon: Bell,       label: 'Monitoring' },
+    { id: 'bulk',       icon: Upload,     label: 'Bulk Upload' },
+    { id: 'compliance', icon: FileText,   label: 'Compliance' },
   ];
 
   return (
@@ -193,25 +198,27 @@ function Dashboard({ showToast }) {
     complianceRate: 100,
   });
 
+  // FIX: empty dep array — runs once on mount only.
+  // showToast is intentionally excluded; it's stable via useCallback
+  // but including it here could still cause loops in edge cases.
   useEffect(() => {
-    // Load dashboard stats
     api.getComplianceDashboard()
       .then(data => {
         setStats({
           totalVerifications: data.summary.total_verifications || 0,
-          activeMonitors: data.summary.unique_candidates || 0,
-          expiringSoon: data.upcoming_expirations?.length || 0,
-          complianceRate: parseFloat(data.summary.compliance_rate) || 100,
+          activeMonitors:     data.summary.unique_candidates   || 0,
+          expiringSoon:       data.upcoming_expirations?.length || 0,
+          complianceRate:     parseFloat(data.summary.compliance_rate) || 100,
         });
       })
       .catch(() => showToast('Error loading dashboard', 'error'));
-  }, [showToast]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const statCards = [
-    { label: 'Total Verifications', value: stats.totalVerifications, icon: CheckCircle, color: 'blue' },
-    { label: 'Active Monitors', value: stats.activeMonitors, icon: Bell, color: 'green' },
-    { label: 'Expiring Soon', value: stats.expiringSoon, icon: AlertTriangle, color: 'yellow' },
-    { label: 'Compliance Rate', value: `${stats.complianceRate.toFixed(1)}%`, icon: Shield, color: 'purple' },
+    { label: 'Total Verifications', value: stats.totalVerifications,              icon: CheckCircle,  color: 'blue'   },
+    { label: 'Active Monitors',     value: stats.activeMonitors,                  icon: Bell,         color: 'green'  },
+    { label: 'Expiring Soon',       value: stats.expiringSoon,                    icon: AlertTriangle,color: 'yellow' },
+    { label: 'Compliance Rate',     value: `${stats.complianceRate.toFixed(1)}%`, icon: Shield,       color: 'purple' },
   ];
 
   return (
@@ -361,15 +368,9 @@ function VerifyPage({ showToast }) {
 
           {result.verified && (
             <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <span className="font-semibold">Status:</span> {result.status}
-              </div>
-              <div>
-                <span className="font-semibold">Type:</span> {result.license_type}
-              </div>
-              <div>
-                <span className="font-semibold">Expires:</span> {result.expiration_date}
-              </div>
+              <div><span className="font-semibold">Status:</span> {result.status}</div>
+              <div><span className="font-semibold">Type:</span> {result.license_type}</div>
+              <div><span className="font-semibold">Expires:</span> {result.expiration_date}</div>
               <div>
                 <span className="font-semibold">Discipline:</span>{' '}
                 {result.discipline_record ? 'Yes' : 'None'}
@@ -478,7 +479,7 @@ function MultiStatePage({ showToast }) {
                   <span className="font-semibold">{result.state}</span>
                   {result.license && (
                     <span className="ml-4 text-sm">
-                      License: {result.license.license_number} | 
+                      License: {result.license.license_number} |
                       Expires: {result.license.expiration_date}
                     </span>
                   )}
@@ -501,11 +502,7 @@ function MonitoringPage({ showToast }) {
   const [monitors, setMonitors] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadMonitors();
-  }, []);
-
-  const loadMonitors = async () => {
+  const loadMonitors = useCallback(async () => {
     try {
       const data = await api.getMonitors();
       setMonitors(data.monitors || []);
@@ -514,7 +511,11 @@ function MonitoringPage({ showToast }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    loadMonitors();
+  }, [loadMonitors]);
 
   const handleDelete = async (monitorId) => {
     try {
@@ -663,9 +664,7 @@ function BulkUploadPage({ showToast }) {
 
       {result && (
         <div className="bg-green-50 border border-green-200 p-6 rounded-lg">
-          <h4 className="font-semibold text-green-900 mb-2">
-            Upload Successful!
-          </h4>
+          <h4 className="font-semibold text-green-900 mb-2">Upload Successful!</h4>
           <div className="text-green-700">
             Job ID: {result.job_id}<br />
             Total licenses: {result.total_licenses}<br />
@@ -682,12 +681,13 @@ function CompliancePage({ showToast }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // FIX: empty dep array — runs once on mount only, no infinite loop.
   useEffect(() => {
     api.getComplianceDashboard()
       .then(setData)
       .catch(() => showToast('Error loading compliance data', 'error'))
       .finally(() => setLoading(false));
-  }, [showToast]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) {
     return <div className="text-center py-12">Loading compliance dashboard...</div>;
