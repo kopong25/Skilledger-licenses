@@ -282,7 +282,7 @@ function App() {
       <Sidebar currentView={currentView} setCurrentView={setCurrentView} onLogout={handleLogout} />
 
       <div className="ml-64 p-8">
-        <Header onLogout={handleLogout} />
+        <Header onLogout={handleLogout} setCurrentView={setCurrentView} />
 
         {currentView === 'dashboard'  && <Dashboard    showToast={showToast} />}
         {currentView === 'verify'     && <VerifyPage   showToast={showToast} />}
@@ -290,6 +290,7 @@ function App() {
         {currentView === 'monitoring' && <MonitoringPage showToast={showToast} />}
         {currentView === 'bulk'       && <BulkUploadPage showToast={showToast} />}
         {currentView === 'compliance' && <CompliancePage showToast={showToast} />}
+        {currentView === 'settings'   && <SettingsPage  showToast={showToast} />}
       </div>
     </div>
   );
@@ -358,7 +359,7 @@ function Sidebar({ currentView, setCurrentView, onLogout }) {
 
 // ---------- Header ----------
 
-function Header() {
+function Header({ setCurrentView }) {
   const user = JSON.parse(localStorage.getItem('skilledger_user') || '{}');
 
   return (
@@ -370,7 +371,10 @@ function Header() {
           </h2>
           <p className="text-gray-500">Manage your license verifications</p>
         </div>
-        <button className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+        <button
+          onClick={() => setCurrentView('settings')}
+          className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+        >
           <Settings size={20} />
           <span>Settings</span>
         </button>
@@ -828,6 +832,209 @@ function CompliancePage({ showToast }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ---------- Settings Page ----------
+
+function SettingsPage({ showToast }) {
+  const storedUser = JSON.parse(localStorage.getItem('skilledger_user') || '{}');
+
+  const [form, setForm] = useState({
+    fullName:     storedUser.fullName     || '',
+    organization: storedUser.organization || '',
+    email:        storedUser.email        || '',
+    website:      storedUser.website      || '',
+    phone:        storedUser.phone        || '',
+    address:      storedUser.address      || '',
+  });
+  const [logo, setLogo]       = useState(storedUser.logo || null);
+  const [saving, setSaving]   = useState(false);
+  const [preview, setPreview] = useState(storedUser.logo || null);
+
+  const set = (field) => (e) => setForm({ ...form, [field]: e.target.value });
+
+  const handleLogoChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      showToast('Logo must be under 2MB', 'error');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setPreview(reader.result);
+      setLogo(reader.result);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveLogo = () => {
+    setPreview(null);
+    setLogo(null);
+  };
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      // Save to localStorage (extend with API call when backend supports it)
+      const updated = { ...form, logo };
+      localStorage.setItem('skilledger_user', JSON.stringify(updated));
+      showToast('Settings saved successfully!', 'success');
+    } catch (err) {
+      showToast('Error saving settings', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="max-w-2xl">
+      <h3 className="text-2xl font-bold mb-6">Organization Settings</h3>
+
+      <form onSubmit={handleSave} className="space-y-6">
+
+        {/* Logo */}
+        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+          <h4 className="font-semibold text-lg mb-4">Organization Logo</h4>
+          <div className="flex items-center space-x-6">
+            <div className="w-24 h-24 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden bg-gray-50">
+              {preview ? (
+                <img src={preview} alt="Logo" className="w-full h-full object-contain" />
+              ) : (
+                <div className="text-center">
+                  <Upload size={24} className="mx-auto text-gray-400 mb-1" />
+                  <span className="text-xs text-gray-400">No logo</span>
+                </div>
+              )}
+            </div>
+            <div className="space-y-2">
+              <label className="block">
+                <span className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 cursor-pointer text-sm font-medium">
+                  Upload Logo
+                </span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleLogoChange}
+                  className="hidden"
+                />
+              </label>
+              {preview && (
+                <button
+                  type="button"
+                  onClick={handleRemoveLogo}
+                  className="block text-sm text-red-600 hover:underline"
+                >
+                  Remove logo
+                </button>
+              )}
+              <p className="text-xs text-gray-500">PNG, JPG up to 2MB</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Organization Details */}
+        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+          <h4 className="font-semibold text-lg mb-4">Organization Details</h4>
+          <div className="space-y-4">
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Organization Name</label>
+              <input
+                type="text"
+                value={form.organization}
+                onChange={set('organization')}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                placeholder="Acme Staffing"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Website</label>
+              <input
+                type="url"
+                value={form.website}
+                onChange={set('website')}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                placeholder="https://yourcompany.com"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+              <input
+                type="tel"
+                value={form.phone}
+                onChange={set('phone')}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                placeholder="+1 (555) 000-0000"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+              <textarea
+                value={form.address}
+                onChange={set('address')}
+                rows={3}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                placeholder="123 Main St, Phoenix, AZ 85001"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Personal Details */}
+        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+          <h4 className="font-semibold text-lg mb-4">Your Details</h4>
+          <div className="space-y-4">
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+              <input
+                type="text"
+                value={form.fullName}
+                onChange={set('fullName')}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                placeholder="Jane Doe"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <input
+                type="email"
+                value={form.email}
+                onChange={set('email')}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                placeholder="you@company.com"
+                disabled
+              />
+              <p className="text-xs text-gray-400 mt-1">Email cannot be changed</p>
+            </div>
+          </div>
+        </div>
+
+        {/* API Key */}
+        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+          <h4 className="font-semibold text-lg mb-4">API Key</h4>
+          <div className="bg-gray-50 p-3 rounded-lg font-mono text-sm text-gray-700 break-all">
+            {localStorage.getItem('skilledger_api_key') || 'No API key found'}
+          </div>
+          <p className="text-xs text-gray-400 mt-2">Include this in the <code>X-API-Key</code> header for direct API calls</p>
+        </div>
+
+        <button
+          type="submit"
+          disabled={saving}
+          className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 font-semibold"
+        >
+          {saving ? 'Saving...' : 'Save Settings'}
+        </button>
+      </form>
     </div>
   );
 }
