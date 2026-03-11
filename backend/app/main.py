@@ -14,6 +14,7 @@ from app.models import Base
 
 # Import routers
 from app.api import verification, monitoring, bulk, audit
+app.include_router(auth.router, prefix="/api")
 
 # Configure logging
 logger.remove()
